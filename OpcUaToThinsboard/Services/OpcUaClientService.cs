@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
-using System.Text;
+﻿using System.Diagnostics;
 using System.Text.Json;
-using System.Threading.Tasks;
+using Cronos;
 using Opc.Ua;
 using Opc.Ua.Client;
 using OpcUaToThinsboard.Models;
@@ -17,46 +12,22 @@ namespace OpcUaToThinsboard.Services
         IConfiguration configuration,
         ILogger<OpcUaClientService> logger) : BackgroundService
     {
-        private Session? session;
         private List<Device>? devices;
+        private ApplicationConfiguration? config;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             logger.LogInformation("OPC UA Client Service is starting...");
 
-            var serverUrl = configuration["OPCUA:ServerUrl"]
-                ?? throw new Exception("Konfiguratsiyada OPCUA:ServerUrl sozlanmagam!");
-
-            session = await CreateSession(serverUrl, stoppingToken);
             await LoadDevicesAsync(stoppingToken);
             await PrepareDevicesAsync(stoppingToken);
+            config = await GetConfiguration();
+
             logger.LogInformation("OPC UA Client Service started successfully.");
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                try
-                {
-                    if (!session.Connected)
-                    {
-                        logger.LogInformation("Reconnecting to OPC UA server...");
-                        try
-                        {
-                            await session.ReconnectAsync(stoppingToken);
-                            logger.LogInformation("Reconnected to OPC UA server successfully.");
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogError(ex, "Failed to reconnect to OPC UA server.");
-                        }
-                    }
-
-                    await Task.Delay(1000, stoppingToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    logger.LogInformation("OPC UA Client Service is stopping...");
-                    break;
-                }
+                await Task.Delay(1000, stoppingToken);
             }
         }
 
@@ -64,10 +35,6 @@ namespace OpcUaToThinsboard.Services
         {
             logger.LogInformation("Preparing devices...");
 
-            if (session == null)
-            {
-                throw new Exception("OPC UA sessiyasi ochilmadi!");
-            }
             if (devices == null || devices.Count == 0)
             {
                 throw new Exception("Qurilmalar yuklanmadi yoki bo'sh!");
@@ -92,9 +59,150 @@ namespace OpcUaToThinsboard.Services
             return true;
         }
 
-        private async Task StartHistoriesReadTasks(Device device, CancellationToken cancellationToken)
+        private Task StartHistoriesReadTasks(Device device, CancellationToken cancellationToken)
         {
-            
+            if (device.Histories == null || device.Histories.Count == 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            foreach (var history in device.Histories)
+            {
+                if (string.IsNullOrWhiteSpace(history.CheckCron))
+                {
+                    continue;
+                }
+
+                var cronExpression = CronExpression.Parse(history.CheckCron);
+
+                _ = Task.Run(async () =>
+                {
+                    DateTimeOffset? next = cronExpression.GetNextOccurrence(DateTimeOffset.Now, TimeZoneInfo.Local);
+                    while (!cancellationToken.IsCancellationRequested && next != null)
+                    {
+                        var delay = next.Value - DateTimeOffset.Now;
+                        if (delay > TimeSpan.Zero)
+                        {
+                            await Task.Delay(delay, cancellationToken);
+                        }
+
+                        try
+                        {
+                            logger.LogInformation("[{device.Name}] History '{history.Name}' task triggered by cron: {history.CheckCron}",
+                                device.Name, history.Name, history.CheckCron);
+
+                            var lastRaded = await tbHttpDeviceApiService.GetAttributesAsync(device.Token,
+                                    [$"lastRead_{history.Name}"]);
+
+                            var now = DateTime.Now;
+
+                            DateTime startTime, endTime;
+                            switch (history.HistoryType?.ToLowerInvariant())
+                            {
+                                case "daily":
+                                    startTime = new DateTime(now.Year, now.Month, now.Day).AddDays(-30);
+                                    endTime = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0);
+                                    break;
+                                case "hourly":
+                                    startTime = new DateTime(now.Year, now.Month, now.Day).AddDays(-2);
+                                    endTime = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, 0);
+                                    break;
+                                default:
+                                    throw new Exception($"Unknown history type: {history.HistoryType}");
+                            }
+
+                            if (!lastRaded.Client.TryGetValue($"lastRead_{history.Name}", out var value) && value is not null)
+                            {
+                                startTime = DateTime.Parse(value.ToString()!);
+                            }
+
+                            var telemetryData = await ReadHistoryAsync(device, history, startTime, endTime, cancellationToken);
+
+                            if (telemetryData != null)
+                            {
+                                await tbHttpDeviceApiService.SendTelemetryAsync(device.Token, telemetryData);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "[{device.Name}] History '{history.Name}' read task error",
+                                device.Name, history.Name);
+                        }
+
+                        next = cronExpression.GetNextOccurrence(DateTimeOffset.Now, TimeZoneInfo.Local);
+                    }
+                }, cancellationToken);
+            }
+            return Task.CompletedTask;
+        }
+
+        private async Task<List<TelemetryPayload>?> ReadHistoryAsync(Device device, History history,
+            DateTime startTime, DateTime endTime, CancellationToken cancellationToken)
+        {
+            if (startTime > endTime)
+            {
+                logger.LogWarning("Start time {startTime} is after end time {endTime} for history {history.Name}. Skipping read.",
+                    startTime, endTime, history.Name);
+                return null;
+            }
+
+            HistoryReadValueId historyReadId = new HistoryReadValueId
+            {
+                NodeId = new NodeId(history.NodeId),
+                IndexRange = null,
+                DataEncoding = null
+            };
+
+            ReadRawModifiedDetails details = new ReadRawModifiedDetails
+            {
+                IsReadModified = false,
+                StartTime = startTime,
+                EndTime = endTime,
+                NumValuesPerNode = 200,
+                ReturnBounds = true
+            };
+
+            var collection = new HistoryReadValueIdCollection([historyReadId]);
+            using var session = await CreateSession(cancellationToken);
+
+            for (int attempt = 1; attempt <= 2; attempt++)
+            {
+                var response = await session!.HistoryReadAsync(
+                    null,
+                    new ExtensionObject(details),
+                    TimestampsToReturn.Both,
+                    false,
+                    collection,
+                    CancellationToken.None);
+
+                if (StatusCode.IsGood(response.Results[0].StatusCode))
+                {
+                    var telemetry = new List<TelemetryPayload>();
+
+                    HistoryData historyData = (HistoryData)ExtensionObject.ToEncodeable(response.Results[0].HistoryData);
+                    foreach (var dataValue in historyData.DataValues)
+                    {
+                        var dt = dataValue.SourceTimestamp.ToLocalTime();
+                        logger.LogDebug("Время: {dt}, Значение: {value}", dt, dataValue.Value);
+
+                        telemetry.Add(new TelemetryPayload
+                        {
+                            Ts = new DateTimeOffset(dt).ToUnixTimeMilliseconds(),
+                            Values = new Dictionary<string, object>
+                            {
+                                { history.Name, dataValue.Value }
+                            }
+                        });
+                    }
+                    return telemetry;
+                }
+                else
+                {
+                    logger.LogError("Ошибка чтения архивных данных (попытка {attempt}): {statusCode}", attempt, response.Results[0].StatusCode);
+                    await Task.Delay(1000, cancellationToken);
+                }
+            }
+            return null;
         }
 
         private Task StartSubscriptions(Device device, CancellationToken cancellationToken)
@@ -114,12 +222,15 @@ namespace OpcUaToThinsboard.Services
 
                 var attributes = new Dictionary<string, object>();
 
+                Stopwatch stopwatch = new();
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    Stopwatch stopwatch = Stopwatch.StartNew();
                     // read nodes every interval
+                    stopwatch.Restart();
                     try
                     {
+                        using var session = await CreateSession(cancellationToken);
+
                         var (dataCollection, serviceResults) = await session!.ReadValuesAsync(readValueIds, cancellationToken);
 
                         attributes.Clear();
@@ -142,10 +253,15 @@ namespace OpcUaToThinsboard.Services
 
                         await tbHttpDeviceApiService.SendAttributesAsync(device.Token, attributes);
                     }
+                    catch (ServiceResultException ex)
+                    {
+                        logger.LogError(ex, "Server error while reading OPC UA nodes: {message}", ex.Message);
+                    }
                     catch (Exception ex)
                     {
                         logger.LogError(ex, "Error reading OPC UA nodes.");
                     }
+
                     stopwatch.Stop();
                     var wait = device.Subscriptions.Interval - (int)stopwatch.ElapsedMilliseconds;
                     if (wait > 0)
@@ -154,7 +270,7 @@ namespace OpcUaToThinsboard.Services
                     }
                 }
             }, cancellationToken);
-            
+
             return Task.CompletedTask;
         }
 
@@ -176,10 +292,40 @@ namespace OpcUaToThinsboard.Services
             }
         }
 
-        private async Task<Session> CreateSession(string serverUrl, CancellationToken cancellationToken)
+        private async Task<Session> CreateSession(CancellationToken cancellationToken)
         {
-            logger.LogInformation("Initializing OPC UA application...");
+            logger.LogInformation("Initializing OPC UA session...");
 
+            var serverUrl = configuration["OPCUA:ServerUrl"];
+
+            if (string.IsNullOrEmpty(serverUrl))
+            {
+                throw new Exception("Konfiguratsiyada OPCUA:ServerUrl sozlanmagam!");
+            }
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    var selectedEndpoint = CoreClientUtils.SelectEndpoint(config, serverUrl, useSecurity: false);
+                    var endpointConfig = EndpointConfiguration.Create(config);
+                    var endpoint = new ConfiguredEndpoint(null, selectedEndpoint, endpointConfig);
+
+                    var session = await Session.Create(config, endpoint, false, "OPC UA Client", 60000,
+                                                   null, null, cancellationToken);
+                    return session;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to create OPC UA session. Retrying in 5 seconds...");
+                    await Task.Delay(5000, cancellationToken);
+                }
+            }
+            throw new Exception("OPC UA sessiyasi yaratilmadi!");
+        }
+
+        private async Task<ApplicationConfiguration> GetConfiguration()
+        {
             var config = new ApplicationConfiguration
             {
                 ApplicationName = "OPC UA Client",
@@ -198,32 +344,12 @@ namespace OpcUaToThinsboard.Services
             };
 
             await config.Validate(ApplicationType.Client);
-
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    var selectedEndpoint = CoreClientUtils.SelectEndpoint(config, serverUrl, useSecurity: false);
-                    var endpointConfig = EndpointConfiguration.Create(config);
-                    var endpoint = new ConfiguredEndpoint(null, selectedEndpoint, endpointConfig);
-        
-                    var session = await Session.Create(config, endpoint, false, "OPC UA Client", 60000,
-                                                   null, null, cancellationToken);
-                    return session;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Failed to create OPC UA session. Retrying in 5 seconds...");
-                    await Task.Delay(5000, cancellationToken);
-                }
-            }
-            throw new Exception("OPC UA sessiyasi yaratilmadi!");
+            return config;
         }
 
         public override void Dispose()
         {
             GC.SuppressFinalize(this);
-            session?.Dispose();
             base.Dispose();
         }
     }
