@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using Cronos;
 using Opc.Ua;
@@ -19,9 +20,10 @@ namespace OpcUaToThinsboard.Services
         {
             logger.LogInformation("OPC UA Client Service is starting...");
 
+            config = await GetConfiguration();
+
             await LoadDevicesAsync(stoppingToken);
             await PrepareDevicesAsync(stoppingToken);
-            config = await GetConfiguration();
 
             logger.LogInformation("OPC UA Client Service started successfully.");
 
@@ -42,13 +44,75 @@ namespace OpcUaToThinsboard.Services
 
             foreach (var device in devices)
             {
-                // subscribe to device data changes
+                tbHttpDeviceApiService.RegisterDeviceToken(device.Token, RpcRequest);
+
                 bool flowControl = await StartTasks(device, cancellationToken);
                 if (!flowControl)
                 {
                     continue;
                 }
             }
+        }
+
+        private async Task RpcRequest(string deviceToken, ServerSideRpcRequest request, CancellationToken cancellationToken)
+        {
+            logger.LogDebug("RPC request received: {request}, DeviceToken: {DeviceToken}",
+                JsonSerializer.Serialize(request), deviceToken);
+
+            JsonElement paramsJson = (JsonElement)request.Params;
+            switch (request.Method.ToLowerInvariant())
+            {
+                case "gethistory":
+                    if (!paramsJson.TryGetProperty("historyName", out var historyNameElement) ||
+                        !paramsJson.TryGetProperty("startTime", out var startTimeElement) ||
+                        !paramsJson.TryGetProperty("endTime", out var endTimeElement))
+                    {
+                        logger.LogWarning("Invalid parameters for getHistory method.");
+                        await tbHttpDeviceApiService.SendRpcResponseAsync(deviceToken, request.Id,
+                            new { success = false, message = "Invalid parameters." });
+                        return;
+                    }
+
+                    string historyName = historyNameElement.GetString()!;
+                    DateTime startTime = DateTime.Parse(startTimeElement.GetString()!);
+                    DateTime endTime = DateTime.Parse(endTimeElement.GetString()!);
+
+                    var device = devices?.FirstOrDefault(d => d.Token == deviceToken);
+                    if (device == null)
+                    {
+                        logger.LogWarning("Device with token {deviceToken} not found.", deviceToken);
+                        await tbHttpDeviceApiService.SendRpcResponseAsync(deviceToken, request.Id,
+                            new { success = false, message = "Device not found." });
+                        return;
+                    }
+
+                    var history = device.Histories?.FirstOrDefault(h => h.Name == historyName);
+                    if (history == null)
+                    {
+                        logger.LogWarning("History '{historyName}' not found for device {deviceToken}.", historyName, deviceToken);
+                        await tbHttpDeviceApiService.SendRpcResponseAsync(deviceToken, request.Id,
+                            new { success = false, message = "History not found." });
+                        return;
+                    }
+
+                    var telemetryData = await ReadHistoryAsync(device, history, startTime, endTime, cancellationToken);
+                    if (telemetryData != null)
+                    {
+                        await tbHttpDeviceApiService.SendTelemetryAsync(device.Token, telemetryData);
+                        await tbHttpDeviceApiService.SendRpcResponseAsync(deviceToken, request.Id, new { success = true });
+                    }
+                    else
+                    {
+                        await tbHttpDeviceApiService.SendRpcResponseAsync(deviceToken, request.Id, new { success = false, message = "No data found." });
+                    }
+                    break;
+                
+                default:
+                    logger.LogWarning("Unknown RPC method: {method}", request.Method);
+                    await tbHttpDeviceApiService.SendRpcResponseAsync(deviceToken, request.Id, new { success = false, message = "Unknown method." });
+                    return;
+            }
+
         }
 
         private async Task<bool> StartTasks(Device device, CancellationToken cancellationToken)
@@ -74,6 +138,7 @@ namespace OpcUaToThinsboard.Services
                 }
 
                 var cronExpression = CronExpression.Parse(history.CheckCron);
+                var lastReadAttributeName = $"lastRead_{history.Name}";
 
                 _ = Task.Run(async () =>
                 {
@@ -91,8 +156,8 @@ namespace OpcUaToThinsboard.Services
                             logger.LogInformation("[{device.Name}] History '{history.Name}' task triggered by cron: {history.CheckCron}",
                                 device.Name, history.Name, history.CheckCron);
 
-                            var lastRaded = await tbHttpDeviceApiService.GetAttributesAsync(device.Token,
-                                    [$"lastRead_{history.Name}"]);
+                            var lastRead = await tbHttpDeviceApiService.GetAttributesAsync(device.Token,
+                                    [lastReadAttributeName]);
 
                             var now = DateTime.Now;
 
@@ -111,9 +176,9 @@ namespace OpcUaToThinsboard.Services
                                     throw new Exception($"Unknown history type: {history.HistoryType}");
                             }
 
-                            if (!lastRaded.Client.TryGetValue($"lastRead_{history.Name}", out var value) && value is not null)
+                            if (lastRead.Client.TryGetValue(lastReadAttributeName, out var value) && value is not null)
                             {
-                                startTime = DateTime.Parse(value.ToString()!);
+                                startTime = DateTime.ParseExact(value.ToString()!, "u", CultureInfo.InvariantCulture);
                             }
 
                             var telemetryData = await ReadHistoryAsync(device, history, startTime, endTime, cancellationToken);
@@ -121,6 +186,12 @@ namespace OpcUaToThinsboard.Services
                             if (telemetryData != null)
                             {
                                 await tbHttpDeviceApiService.SendTelemetryAsync(device.Token, telemetryData);
+                                var lastReadDateTime = DateTimeOffset.FromUnixTimeMilliseconds(telemetryData.Max(t => t.Ts));
+                                await tbHttpDeviceApiService.SendAttributesAsync(device.Token,
+                                    new Dictionary<string, object>
+                                    {
+                                        { lastReadAttributeName, lastReadDateTime.ToString("u", CultureInfo.InvariantCulture) }
+                                    });
                             }
                         }
                         catch (Exception ex)
@@ -146,14 +217,14 @@ namespace OpcUaToThinsboard.Services
                 return null;
             }
 
-            HistoryReadValueId historyReadId = new HistoryReadValueId
+            HistoryReadValueId historyReadId = new()
             {
                 NodeId = new NodeId(history.NodeId),
                 IndexRange = null,
                 DataEncoding = null
             };
 
-            ReadRawModifiedDetails details = new ReadRawModifiedDetails
+            ReadRawModifiedDetails details = new()
             {
                 IsReadModified = false,
                 StartTime = startTime,
@@ -251,6 +322,12 @@ namespace OpcUaToThinsboard.Services
 
                         logger.LogDebug("Device Name: {deviceName} Result: {result}", device.Name, attributes);
 
+                        // send attributes to ThingsBoard
+                        if (attributes.Count == 0)
+                        {
+                            logger.LogWarning("No attributes to send for device {deviceName}. Skipping.", device.Name);
+                            return;
+                        }
                         await tbHttpDeviceApiService.SendAttributesAsync(device.Token, attributes);
                     }
                     catch (ServiceResultException ex)
@@ -294,7 +371,7 @@ namespace OpcUaToThinsboard.Services
 
         private async Task<Session> CreateSession(CancellationToken cancellationToken)
         {
-            logger.LogInformation("Initializing OPC UA session...");
+            logger.LogDebug("Initializing OPC UA session...");
 
             var serverUrl = configuration["OPCUA:ServerUrl"];
 
@@ -324,7 +401,7 @@ namespace OpcUaToThinsboard.Services
             throw new Exception("OPC UA sessiyasi yaratilmadi!");
         }
 
-        private async Task<ApplicationConfiguration> GetConfiguration()
+        private static async Task<ApplicationConfiguration> GetConfiguration()
         {
             var config = new ApplicationConfiguration
             {
