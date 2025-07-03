@@ -5,6 +5,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - OPCUA__ServerUrl=opc.tcp://192.168.50.193:37112/LogikaUA
       - Thingsboard__ServerUrl=http://192.168.50.1:8080
+      - TZ=Asia/Tashkent
     networks:
       - bs
     restart: unless-stopped
