@@ -11,5 +11,6 @@ namespace OpcUaToThinsboard.Models
         public required string Name { get; set; }
         public required string NodeId { get; set; }
         public string? CheckCron { get; set; }
+        public string? HistoryType { get; set; } // daily, hourly, monthly
     }
 }
