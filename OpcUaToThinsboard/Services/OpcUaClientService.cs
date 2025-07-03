@@ -127,6 +127,9 @@ namespace OpcUaToThinsboard.Services
         {
             if (device.Histories == null || device.Histories.Count == 0)
             {
+                logger.LogInformation("No histories configured for device {deviceName}. Skipping history tasks.",
+                    device.Name);
+
                 return Task.CompletedTask;
             }
 
@@ -148,6 +151,8 @@ namespace OpcUaToThinsboard.Services
                         var delay = next.Value - DateTimeOffset.Now;
                         if (delay > TimeSpan.Zero)
                         {
+                            logger.LogInformation("[{device.Name}] Waiting for next cron occurrence: {next}",
+                                device.Name, next.Value);
                             await Task.Delay(delay, cancellationToken);
                         }
 
