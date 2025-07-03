@@ -28,61 +28,67 @@
       {
         "name": "flow_day_total",
         "nodeId": "ns=3;s=/СПСеть/ГАЗ/FIC_3471 ГАЗ/FIC_3471 СУТОЧНЫЙ АРХИВ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "flow_hour_total",
         "nodeId": "ns=3;s=/СПСеть/ГАЗ/FIC_3471 ГАЗ/FIC_3471 ЧАСОВОЙ  АРХИВ",
-        "checkCron": "0 15 0/1 * * ?"
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       }
     ]
   },
 
   {
-    "name": "Эски котелни ГАЗ2",
-    "description": "Эски котелни ГАЗ2",
+    "name": "Эски котелни ГАЗ",
+    "description": "Эски котелни ГАЗ",
     "token": "VtrhrnubKrapg18TpLU1",
     "subscriptions": {
       "interval": 10000,
       "tags": [
         {
           "name": "pressure",
-          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни Давления ГАЗ (МПа)"
+          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни Давления ГАЗ (МПа)"
         },
         {
           "name": "pressure_drop",
-          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни Перипад ГАЗ (кПа)"
+          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни Перипад ГАЗ (кПа)"
         },
         {
           "name": "flowrate",
-          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни Расход ГАЗ (М3\\Ч)"
+          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни Расход ГАЗ (М3\\Ч)"
         },
         {
           "name": "temperature",
-          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни Температура ГАЗ (С)"
+          "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни Температура ГАЗ (С)"
         }
       ]
     },
     "histories": [
       {
         "name": "flow_day_total",
-        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни СУТОЧНЫЙ  АРХИВ",
-        "checkCron": "0 15 0 * * ?"
+        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни СУТОЧНЫЙ  АРХИВ",
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "flow_hour_total",
-        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни ЧАСОВОЙ АРХИВ",
-        "checkCron": "0 15 0/1 * * ?"
+        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни ЧАСОВОЙ АРХИВ",
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "pressure_day",
-        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни ГАЗ Давления СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни ГАЗ Давления СУТОЧНЫЙ",
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_day",
-        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ2/Эски котелни ГАЗ Темпратура  СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "nodeId": "ns=3;s=/СПСеть/ГАЗ/Эски котелни ГАЗ/Эски котелни ГАЗ Темпратура  СУТОЧНЫЙ",
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       }
     ]
   },
@@ -116,22 +122,26 @@
       {
         "name": "flow_day_total",
         "nodeId": "ns=3;s=/СПСеть/ГАЗ/Янгги котелни ГАЗ/Янгги котелни СУТОЧНЫЙ АРХИВ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "flow_hour_total",
         "nodeId": "ns=3;s=/СПСеть/ГАЗ/Янгги котелни ГАЗ/Янгги котелни ЧАСОВОЙ  АРХИВ",
-        "checkCron": "0 15 0/1 * * ?"
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "pressure_day",
         "nodeId": "ns=3;s=/СПСеть/ГАЗ/Янгги котелни ГАЗ/Янги котелни ГАЗ Давлния  СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_day",
         "nodeId": "ns=3;s=/СПСеть/ГАЗ/Янгги котелни ГАЗ/Янги котелни ГАЗ Темпратура  СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       }
     ]
   },
@@ -169,32 +179,38 @@
       {
         "name": "flow_day_total",
         "nodeId": "ns=3;s=/СПСеть/ПАР/Янгги котелни ПАР/Янгги котелни СУТОЧНЫЙ АРХИВ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "flow_hour_total",
         "nodeId": "ns=3;s=/СПСеть/ПАР/Янгги котелни ПАР/Янгги котелни ЧАСОВОЙ АРХИВ",
-        "checkCron": "0 15 0/1 * * ?"
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "pressure_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/Янгги котелни ПАР/Янгги котелни Давления СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/Янгги котелни ПАР/Янгги котелни Температура СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_hour",
         "nodeId": "ns=3;s=/СПСеть/ПАР/Янгги котелни ПАР/Янгги котелни Температура часавой",
-        "checkCron": "0 15 0/1 * * ?"
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "energy_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/Янгги котелни ПАР/Янгги котелни СУТОЧНЫЙ АРХИВ ГЕГАКАЛОРИЯ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       }
     ]
   },
@@ -232,32 +248,38 @@
       {
         "name": "flow_day_total",
         "nodeId": "ns=3;s=/СПСеть/ПАР/280 F2 ПАР/280 F2 котелни СУТОЧНЫЙ АРХИВ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "flow_hour_total",
         "nodeId": "ns=3;s=/СПСеть/ПАР/280 F2 ПАР/280 F2 котелни ЧАСОВОЙ АРХИВ",
-        "checkCron": "0 15 0/1 * * ?"
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "pressure_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/280 F2 ПАР/280 F2 котелни Давления СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/280 F2 ПАР/280 F2 котелни Температура СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_hour",
-        "nodeId": "ns=3;ns=3;s=/СПСеть/ПАР/280 F2 ПАР/280 F2 котелни Температура часавой",
-        "checkCron": "0 15 0/1 * * ?"
+        "nodeId": "ns=3;s=/СПСеть/ПАР/280 F2 ПАР/280 F2 котелни Температура часавой",
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "energy_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/280 F2 ПАР/280 F2 котелни СУТОЧНЫЙ АРХИВ ГЕГАКАЛОРИЯ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       }
     ]
   },
@@ -295,32 +317,38 @@
       {
         "name": "flow_day_total",
         "nodeId": "ns=3;s=/СПСеть/ПАР/F3 ПАР/280 F3 СУТОЧНЫЙ АРХИВ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "flow_hour_total",
         "nodeId": "ns=3;s=/СПСеть/ПАР/F3 ПАР/280 F3 ЧАСОВОЙ АРХИВ",
-        "checkCron": "0 15 0/1 * * ?"
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "pressure_day",
-        "nodeId": "ns=3;s=/СПСеть/ПАР/F3 ПАР/Я280 F3 Давления СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "nodeId": "ns=3;s=/СПСеть/ПАР/F3 ПАР/280 F3 Давления СУТОЧНЫЙ",
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/F3 ПАР/280 F3 Температура СУТОЧНЫЙ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       },
       {
         "name": "temperature_hour",
         "nodeId": "ns=3;s=/СПСеть/ПАР/F3 ПАР/280 F3 котелни Температура часавой",
-        "checkCron": "0 15 0/1 * * ?"
+        "checkCron": "15 * * * *",
+        "historyType": "hourly"
       },
       {
         "name": "energy_day",
         "nodeId": "ns=3;s=/СПСеть/ПАР/F3 ПАР/280 F3 СУТОЧНЫЙ АРХИВ ГЕГАКАЛОРИЯ",
-        "checkCron": "0 15 0 * * ?"
+        "checkCron": "15 0 * * *",
+        "historyType": "daily"
       }
     ]
   }
