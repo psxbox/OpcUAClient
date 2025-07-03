@@ -1,0 +1,14 @@
+services:
+  opcua-to-thingsboard:
+    image: opcua-to-thingsboard
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - OPCUA__ServerUrl=opc.tcp://192.168.50.193:37112/LogikaUA
+      - Thingsboard__ServerUrl=http://192.168.50.1:8080
+    networks:
+      - bs
+    restart: unless-stopped
+
+networks:
+  bs:
+    external: true
