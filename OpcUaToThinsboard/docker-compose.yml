@@ -9,6 +9,7 @@ services:
     networks:
       - bs
     restart: unless-stopped
+    container_name: opcua-to-thingsboard
 
 networks:
   bs:

@@ -6,7 +6,7 @@ dotnet publish \
     --arch x64 \
     -c Release \
     -p:PublishProfile=DefaultContainer \
-    -p:ContainerImageName=opcua-to-thingsboard
+    -p:ContainerRepository=opcua-to-thingsboard
 
 # Example: To push to Docker Hub, set ContainerRegistry to your Docker Hub username
 # -p:ContainerRegistry=mydockerhubusername
