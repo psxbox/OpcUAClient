@@ -123,6 +123,8 @@ namespace OpcUaToThinsboard.Services
             return true;
         }
 
+        readonly SemaphoreSlim readHistorySemaphore = new(2);
+
         private Task StartHistoriesReadTasks(Device device, CancellationToken cancellationToken)
         {
             if (device.Histories == null || device.Histories.Count == 0)
@@ -156,6 +158,8 @@ namespace OpcUaToThinsboard.Services
                             await Task.Delay(delay, cancellationToken);
                         }
 
+                        await readHistorySemaphore.WaitAsync(cancellationToken);
+
                         try
                         {
                             logger.LogInformation("[{device.Name}] History '{history.Name}' task triggered by cron: {history.CheckCron}",
@@ -183,7 +187,7 @@ namespace OpcUaToThinsboard.Services
 
                             if (lastRead.Client.TryGetValue(lastReadAttributeName, out var value) && value is not null)
                             {
-                                startTime = DateTime.ParseExact(value.ToString()!, "u", CultureInfo.InvariantCulture);
+                                startTime = DateTime.ParseExact(value.ToString()!, "u", CultureInfo.InvariantCulture).ToLocalTime();
                             }
 
                             var telemetryData = await ReadHistoryAsync(device, history, startTime, endTime, cancellationToken);
@@ -204,6 +208,10 @@ namespace OpcUaToThinsboard.Services
                             logger.LogError(ex, "[{device.Name}] History '{history.Name}' read task error",
                                 device.Name, history.Name);
                         }
+                        finally
+                        {
+                            readHistorySemaphore.Release();
+                        }
 
                         next = cronExpression.GetNextOccurrence(DateTimeOffset.Now, TimeZoneInfo.Local);
                     }
@@ -215,6 +223,9 @@ namespace OpcUaToThinsboard.Services
         private async Task<List<TelemetryPayload>?> ReadHistoryAsync(Device device, History history,
             DateTime startTime, DateTime endTime, CancellationToken cancellationToken)
         {
+            logger.LogInformation("[{device.Name}] Reading history {history.Name} from {startTime} to {endTime}.",
+                device.Name, history.Name, startTime, endTime);
+
             if (startTime > endTime)
             {
                 logger.LogWarning("Start time {startTime} is after end time {endTime} for history {history.Name}. Skipping read.",
@@ -232,8 +243,8 @@ namespace OpcUaToThinsboard.Services
             ReadRawModifiedDetails details = new()
             {
                 IsReadModified = false,
-                StartTime = startTime,
-                EndTime = endTime,
+                StartTime = startTime.ToLocalTime(),
+                EndTime = endTime.ToLocalTime(),
                 NumValuesPerNode = 200,
                 ReturnBounds = true
             };
@@ -281,6 +292,8 @@ namespace OpcUaToThinsboard.Services
             return null;
         }
 
+        readonly SemaphoreSlim readCurrentSemaphore = new(2);
+
         private Task StartSubscriptions(Device device, CancellationToken cancellationToken)
         {
             if (device.Subscriptions == null || device.Subscriptions.Tags.Count == 0)
@@ -303,6 +316,7 @@ namespace OpcUaToThinsboard.Services
                 {
                     // read nodes every interval
                     stopwatch.Restart();
+                    await readCurrentSemaphore.WaitAsync(cancellationToken);
                     try
                     {
                         using var session = await CreateSession(cancellationToken);
@@ -342,6 +356,10 @@ namespace OpcUaToThinsboard.Services
                     catch (Exception ex)
                     {
                         logger.LogError(ex, "Error reading OPC UA nodes.");
+                    }
+                    finally
+                    {
+                        readCurrentSemaphore.Release();
                     }
 
                     stopwatch.Stop();
@@ -385,8 +403,12 @@ namespace OpcUaToThinsboard.Services
                 throw new Exception("Konfiguratsiyada OPCUA:ServerUrl sozlanmagam!");
             }
 
-            while (!cancellationToken.IsCancellationRequested)
+            int maxAtempts = 3;
+            int attempt = 0;
+
+            while (!cancellationToken.IsCancellationRequested && attempt < maxAtempts)
             {
+                attempt++;
                 try
                 {
                     var selectedEndpoint = CoreClientUtils.SelectEndpoint(config, serverUrl, useSecurity: false);
