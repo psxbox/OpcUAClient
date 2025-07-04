@@ -175,7 +175,7 @@ namespace OpcUaToThinsboard.Services
                             {
                                 case "daily":
                                     startTime = new DateTime(now.Year, now.Month, now.Day).AddDays(-30);
-                                    endTime = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0);
+                                    endTime = new DateTime(now.Year, now.Month, now.Day, 8, 0, 0);
                                     break;
                                 case "hourly":
                                     startTime = new DateTime(now.Year, now.Month, now.Day).AddDays(-2);
