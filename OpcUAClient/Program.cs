@@ -25,7 +25,7 @@ var app = new ApplicationInstance { ApplicationName = "OpcUaClient", Application
 //await app.CheckApplicationInstanceCertificate(false, 0);
 
 // URL сервера, например: "opc.tcp://localhost:4840"
-var selectedEndpoint = CoreClientUtils.SelectEndpoint(config, "opc.tcp://192.168.50.1:37112/LogikaUA", useSecurity: false);
+var selectedEndpoint = CoreClientUtils.SelectEndpoint(config, "opc.tcp://192.168.50.193:37112/LogikaUA", useSecurity: false);
 var endpointConfig = EndpointConfiguration.Create(config);
 var endpoint = new ConfiguredEndpoint(null, selectedEndpoint, endpointConfig);
 
